@@ -88,9 +88,9 @@ int main(int argc, char *argv[]) {
 
             if (FD_ISSET(sockfd, &rset)) {
                 int len = read(sockfd, buf, MAXLINE);
-                if (len < 0) {
-                    err_exit("read");
-                } else if (len == 0) {
+                if (len <= 0) {
+                    if (len < 0)
+                        perror("read");
                     if (close(sockfd) < 0)
                         err_exit("close");
                     FD_CLR(sockfd, &allset);
@@ -102,7 +102,13 @@ int main(int argc, char *argv[]) {
                         if (ret == -1) {
                             if (errno == EINTR)
                                 continue;
-                            err_exit("write");
+
+                            perror("write");
+                            if (close(sockfd) < 0)
+                                err_exit("close");
+                            FD_CLR(sockfd, &allset);
+                            client[i] = -1;
+                            break;
                         }
 
                         len -= ret;
