@@ -35,6 +35,12 @@ int main(int argc, char *argv[]) {
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(SERV_PORT);
 
+    const int on = 1;
+    // SO_REUSEADDR allows a listening server to start and bind its well-known
+    // port, even if previously established connections exist that use this port
+    // as their local port.
+    if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0)
+        err_exit("setsockopt");
     if (bind(listenfd, (SA *)&servaddr, sizeof(servaddr)) < 0)
         err_exit("bind");
 
@@ -42,13 +48,20 @@ int main(int argc, char *argv[]) {
         err_exit("listen");
 
     char buf[MAXLINE];
-    int maxfd = listenfd;
-    int maxi = -1;
+    int maxfd = listenfd; /* initialize */
+    int maxi = -1;        /* index into client[] */
     vector<int> client(FD_SETSIZE, -1);
     fd_set allset;
 
     FD_ZERO(&allset);
     FD_SET(listenfd, &allset);
+
+    auto close_sock = [&](int sockfd, int i) {
+        if (close(sockfd) < 0)
+            err_exit("close");
+        FD_CLR(sockfd, &allset);
+        client[i] = -1;
+    };
 
     for ( ; ; ) {
         fd_set rset = allset;
@@ -73,12 +86,12 @@ int main(int argc, char *argv[]) {
                 exit(-1);
             }
 
-            FD_SET(connfd, &allset);
+            FD_SET(connfd, &allset); /* add new descriptor to set */
             maxfd = max(maxfd, connfd);
-            maxi = max(maxi, i);
+            maxi = max(maxi, i);     /* max index in client[] */
 
             if (--nready <= 0)
-                continue;
+                continue;            /* no more readable descriptors */
         }
 
         int sockfd;
@@ -91,23 +104,21 @@ int main(int argc, char *argv[]) {
                 if (len <= 0) {
                     if (len < 0)
                         perror("read");
-                    if (close(sockfd) < 0)
-                        err_exit("close");
-                    FD_CLR(sockfd, &allset);
-                    client[i] = -1;
+                    close_sock(sockfd, i);
                 } else {
                     int ret;
                     char *ptr = buf;
+                    //
+                    // For sockets, a loop may be required to guarantee that you
+                    // really write out all of the requested bytes.
+                    //
                     while (len != 0 && (ret = write(sockfd, ptr, len)) != 0) {
                         if (ret == -1) {
                             if (errno == EINTR)
                                 continue;
 
                             perror("write");
-                            if (close(sockfd) < 0)
-                                err_exit("close");
-                            FD_CLR(sockfd, &allset);
-                            client[i] = -1;
+                            close_sock(sockfd, i);
                             break;
                         }
 
@@ -117,9 +128,9 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (--nready <= 0)
-                    break;
+                    break; /* no more readable descriptors */
             }
-        }
-    }
+        } /* end of check */
+    } /* loop end */
 
 }
