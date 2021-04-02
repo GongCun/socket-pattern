@@ -48,9 +48,9 @@ int main(int argc, char *argv[]) {
         err_exit("listen");
 
     char buf[MAXLINE];
-    int maxfd = listenfd; /* initialize */
-    int maxi = -1;        /* index into client[] */
-    vector<int> client(FD_SETSIZE, -1);
+    int maxfd = listenfd;               // initialize
+    int maxi = -1;                      // index into client[]
+    vector<int> client(FD_SETSIZE, -1); // -1 indicates available entry
     fd_set allset;
 
     FD_ZERO(&allset);
@@ -86,12 +86,12 @@ int main(int argc, char *argv[]) {
                 exit(-1);
             }
 
-            FD_SET(connfd, &allset); /* add new descriptor to set */
+            FD_SET(connfd, &allset); // add new descriptor to set
             maxfd = max(maxfd, connfd);
-            maxi = max(maxi, i);     /* max index in client[] */
+            maxi = max(maxi, i);     // max index in client[]
 
             if (--nready <= 0)
-                continue;            /* no more readable descriptors */
+                continue;            // no more readable descriptors
         }
 
         int sockfd;
@@ -128,9 +128,9 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (--nready <= 0)
-                    break; /* no more readable descriptors */
+                    break; // no more readable descriptors
             }
-        } /* end of check */
-    } /* loop end */
+        } // end of check
+    } // loop end
 
 }
